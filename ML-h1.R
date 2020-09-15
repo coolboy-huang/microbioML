@@ -9,53 +9,54 @@ library(vegan)
 library(scatterplot3d)
 library(factoextra)
 library(Metrics)
-setwd("D:\\microbiomeML")#���ù���·��
-#��������
-data <- read.csv("S1_table.csv")#OTU��������
-newdata<-read.csv("S2_table.csv")#��ˮƽ����
+setwd("D:\\microbiomeML")#设置工作路径
+#读取数据
+data <- read.csv("S1_table.csv")#OTU计数
+newdata<-read.csv("S2_table.csv")#属水平计数
 
-#���ݴ���
+#数据预处理
 newdata1<-t(newdata)
 new1<-as_tibble(newdata1)
 newdata3<-new1[-1,-1] %>% 
   select(2:37) %>% 
   apply(., 2, as.numeric)
 t3<-new1[-1,]$V1
-#�������
+#距离计算
 newdata3.dist<-vegdist(newdata3)
-#�����������
+#主坐标轴分析
 data3.pcoa<-pcoa(newdata3.dist,correction = "none")
-#��ȡ��������
+#分析结果提取
 t2<-data3.pcoa[["vectors"]]
 t1<-as.data.frame(cbind(t2,t3))
 t1$t3<-as.factor(t1$t3)
 eig1<-as.numeric(data3.pcoa$values[,1])
-#��ɫ����
+#设置颜色
 mycols<-ifelse(t1$t3=="N","magenta","blue")
 mypchs<-ifelse(t1$t3=="N",5,17)
 #scatterplot3d(t1$Axis.1,t1$Axis.2,t1$Axis.3,color  = mycols,xlab = "pc1",ylab = "pc2",zlab = "pc3",pch = mypchs,grid = TRUE)
-#��ͼ
+#绘图
 scatterplot3d(t1$Axis.1,t1$Axis.2,t1$Axis.3,color  = mycols,
               xlab = paste("PCoA1 (",format(100* eig1[1] / sum(eig1), digits=4), "%)", sep=""),
               ylab = paste("PCoA2 (",format(100* eig1[2] / sum(eig1), digits=4), "%)", sep=""),
               zlab = paste("PCoA3 (",format(100* eig1[3] / sum(eig1), digits=4), "%)", sep=""),
               pch = mypchs,grid = TRUE)
-#��ȡ����
+#数据预处理
 data.hc<-data %>%
   select(Samples,3:110)%>%
   column_to_rownames(var="Samples")
-#�������
+#距离计算
 demo.dist<-dist(data.hc)
-#�����ͼ
+#聚类模型
 mymodel<-hclust(demo.dist)
 res<-hcut(dist(data.hc),k=2,hc_func = "hclust",hc_method = "complete",hc_metric = "euclidean")
+#绘图
 fviz_dend(res,rect = TRUE,type="rectangle")
 
-#����Ԥ����
+#数据预处理
 data<-data[,-1]
 data$Malodour<-factor(ifelse(data$Malodour == "N", 1,2))
 
-#����
+#分折
 CVgroup<-function(k,datasize,seed){
   cvlist<-data.frame()
   set.seed(seed)
@@ -69,11 +70,11 @@ CVgroup<-function(k,datasize,seed){
 k<-10
 datasize<-90
 cvlist<-CVgroup(k=k,datasize=datasize,seed=1234)
-#�����洢���ݿ�
+#存储数据框
 svm.p2<-data.frame()
 rf.p2<-data.frame()
 ne.p2<-data.frame()
-#ģ�ͽ���
+#三种模型
 for (i in 1:10) {
   train<-data[-cvlist[[i]],]
   test<-data[cvlist[[i]],]
@@ -97,7 +98,7 @@ for (i in 1:10) {
   ne.p2<-rbind(ne.p2,ne.p1)
 }
 
-#׼ȷ��
+#准确率
 accuracy(ifelse(svm.p2[,2]<0.5,1,2),svm.p2[,1])
 accuracy(ifelse(rf.p2[,2]<0.5,1,2),rf.p2[,1])
 accuracy(ifelse(ne.p2[,2]<0.5,1,2),ne.p2[,1])
@@ -108,11 +109,11 @@ roc2<-roc(rf.p2[,1],rf.p2[,2])
 roc2$auc
 roc3<-roc(ne.p2[,1],ne.p2[,2])
 roc3$auc
-#����ٽ������
+#最佳临界点坐标
 coord1=coords(roc1, "best", ret=c("threshold", "specificity", "sensitivity"), transpose = FALSE)
 coord2=coords(roc2, "best", ret=c("threshold", "specificity", "sensitivity"), transpose = FALSE)
 coord3=coords(roc3, "best", ret=c("threshold", "specificity", "sensitivity"), transpose = FALSE)
-#��ͼ
+#绘制ROC曲线
 g1<-ggroc(list(svm_model=roc1,randomforest_model=roc2,neuralnet_model=roc3),legacy.axes = TRUE)
 g2<-g1+annotate("text",x=.75,y=.45,label=paste("AUC of SVM =", round(roc1$auc,2)))+
   annotate("text",x=.75,y=.35,label=paste("AUC of randomforest =", round(roc2$auc,2)))+
